@@ -12,5 +12,5 @@ Many people seem to think that science and history facts are the most common cat
 With the chi-squared test, we can actually test these hypotheses! 
 We'll assess if science, history and Shakespeare have a higher prevalence in the data set. 
 We'll conduct a hypothesis test to see if the 3 are more likely to appear than other categories.<br/>
-  H0: Our null hypothesis states that science, history and Shakespeare are the most prevalent categories in Jeopardy <br/>
-  H1: The alternative hypothesis states that science, history and Shakespeare are not the most prevalent categories in Jeopardy.
+  _H0: Our null hypothesis states that science, history and Shakespeare are the most prevalent categories in Jeopardy <br/>_
+  _H1: The alternative hypothesis states that science, history and Shakespeare are not the most prevalent categories in Jeopardy._
