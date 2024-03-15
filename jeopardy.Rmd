@@ -1,0 +1,297 @@
+---
+title: "Probability of winning jeopardy"
+author: "Bena"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+
+### Background
+
+Jeopardy is a popular TV show in the US where participants answer trivia to win money. Participants are given a set of categories to choose from and a set of questions that increase in difficulty. As the questions get more difficult, the participant can earn more money for answering correctly. 
+Let's say we're also interested in breaking the record. In this project, we'll work with a dataset of Jeopardy questions to figure out some patterns in the questions that could help you win.
+
+It's a subset of 20,000 rows from a much larger dataset of Jeopardy questions.
+
+Concepts applied in resolving this include:
+probability
+hypothesis testing
+
+### Data familiarization
+
+Setting up
+
+```{r}
+library(tidyverse)
+```
+
+Importing data
+
+```{r}
+jeopardy <- read_csv("jeopardy.csv")
+```
+
+Data exploration
+
+```{r}
+View(jeopardy)
+glimpse(jeopardy)
+```
+Cleaning column names
+
+```{r}
+library(janitor)
+```
+
+```{r}
+jeopardy <- jeopardy %>%
+               janitor::clean_names()
+           
+```
+
+```{r}
+glimpse(jeopardy)
+```
+```{r}
+sapply(jeopardy, typeof)
+```
+### Fixing Data Types
+
+```{r}
+unique(jeopardy$value)
+```
+The value column has character data type because some entries are "None" & the $ sign
+
+```{r}
+jeopardy2 <- jeopardy %>%
+               filter(value != "None") %>%
+               mutate(value = str_replace_all(value, "[$,]",""),
+                      value = as.numeric(value))
+```
+
+### Normalizing Text
+
+We want to clean the texts to ensure that we lowercase all the words and any remove punctuation.
+We'll do this for the category, question & answer columns.
+
+```{r}
+jeopardy2 <- jeopardy2 %>%
+  mutate(category = str_to_lower(category),
+         category = str_replace_all(category, "[^A-Za-z0-9 ],",""),
+         category = gsub("[[:punct:]]", "", category),
+         question = str_to_lower(question),
+         question = str_replace_all(question, "[^[:alnum:]],",""),
+         question = gsub("[[:punct:]]", "", question),
+         answer = str_to_lower(answer),
+         answer = str_replace_all(answer, "[^A-Za-z0-9. ],",""),
+         answer = gsub("[[:punct:]]", "", answer)
+         )
+```
+
+### Making Dates More Accessible
+
+We'll separate this column into year, month and day columns to make filtering easier in the future.
+We also need them to be numeric
+
+```{r}
+library(lubridate)
+```
+
+```{r}
+jeopardy2$air_date <- as.Date(jeopardy2$air_date, format = "%m/%d/%Y")
+jeopardy2$year <- as.numeric(format(as.Date(jeopardy2$air_date, format = "%m/%d/%Y"),"%Y"))
+jeopardy2$month <- as.numeric(format(as.Date(jeopardy2$air_date, format = "%m/%d/%Y"),"%m"))
+jeopardy2$day <- as.numeric(format(as.Date(jeopardy2$air_date, format = "%m/%d/%Y"),"%d"))
+```
+
+Alternatively
+
+```{r}
+jeopardy2 <- jeopardy2 %>%
+               mutate(
+                      day2 = day(air_date),
+                      weekday = as.character(wday(air_date, label=TRUE)),
+                      month2 = month(air_date),
+                      year2 = year(air_date)
+                      )
+```
+
+Re-ordering columns
+
+```{r}
+jeopardy2 <- jeopardy2[,c("show_number","air_date","day","month","year","weekday","round","category","value","question","answer")]
+```
+
+```{r}
+glimpse(jeopardy2)
+```
+### Focusing On Particular Subject Areas
+
+Many people seem to think that science and history facts are the most common categories to appear in Jeopardy episodes. Others feel that Shakespeare questions gets an awful lot of attention from Jeopardy.
+With the chi-squared test, we can actually test these hypotheses! Let's assess if science, history and Shakespeare have a higher prevalence in the data set. 
+
+```{r}
+n_categories <- jeopardy2 %>%
+                 count(category) %>%
+                 summarise(no_of_categories = n())
+
+print(n_categories)
+```
+There are around 3368 unique categories in the Jeopardy data set after doing all of our cleaning. 
+If we suppose that no category stood out, the probability of picking a random category would be the same no matter what category you picked. 
+
+```{r}
+n_questions <- nrow(jeopardy2)
+p_category_expected <- 1/3368
+p_not_category_expected <- 3367/3368
+p_expected <- c(p_category_expected, p_not_category_expected)
+```
+
+We'll conduct a hypothesis test to see if the 3 are more likely to appear than other categories.<br/>
+ > H0: Our null hypothesis states that science, history and Shakespeare are the most prevalent categories in Jeopardy <br/>
+ > H1: The alternative hypothesis states that science, history and Shakespeare are not the most prevalent categories in Jeopardy.
+
+First, we'll count how many times the word "science" appears in the category column.
+
+```{r}
+categories <- pull(jeopardy2, category)
+n_science_categories <- 0
+
+for (c in categories) {
+  if ("science" %in% c) {
+    n_science_categories = n_science_categories + 1
+  }
+}
+```
+
+```{r}
+science_obs <- c(n_science_categories, n_questions - n_science_categories)
+p_expected = c(1/3368, 3367/3368)
+chisq.test(science_obs, p = p_expected)    #the function is used to conduct the hypothesis test
+```
+The p-value is below 0.05 thus we reject the null hypothesis & conclude that science doesn't have a higher prevalence than other topics in the Jeopardy data.
+
+```{r}
+n_history_categories <- 0
+
+for (c in categories) {
+  if ("history" %in% c) {
+    n_history_categories = n_history_categories + 1
+  }
+}
+```
+
+```{r}
+history_obs <- c(n_history_categories, n_questions - n_history_categories)
+p_expected = c(1/3368, 3367/3368)
+chisq.test(history_obs, p = p_expected)
+```
+The p-value is below 0.05 thus we reject the null hypothesis & conclude that history doesn't have a higher prevalence than other topics in the Jeopardy data.
+
+```{r}
+n_shakespear_categories <- 0
+
+for (c in categories) {
+  if ("shakespear" %in% c) {
+    n_shakespear_categories = n_shakespear_categories + 1
+  }
+}
+```
+
+```{r}
+shakespear_obs <- c(n_shakespear_categories, n_questions - n_shakespear_categories)
+p_expected = c(1/3368, 3367/3368)
+chisq.test(shakespear_obs, p = p_expected)
+```
+The p-value is below 0.05 thus we reject the null hypothesis & conclude that shakespear doesn't have a higher prevalence than other topics in the Jeopardy data.
+
+### Unique Terms In Questions
+
+We'd like to investigate how often new questions are repeats of older ones.
+
+```{r}
+questions <- pull(jeopardy2, question)
+terms_used <- 0
+
+for (q in questions) {
+  # Split the sentence into distinct words
+  split_sentence = str_split(q, " ")[[1]]
+  
+  # Check if each word is longer than 6 and if it's currently in terms_used
+  for (term in split_sentence) {
+    if (!term %in% terms_used & nchar(term) >= 6) {
+      terms_used = c(terms_used, term)
+    }
+  }
+}
+```
+
+### Terms In Low and High Value Questions
+
+We're more interested to study terms that have high values associated with it rather than low values. <br/>
+This optimization will help us earn more money when you're on Jeopardy while reducing the number of questions we have to study.<br/>
+We'll define low and high values as follows:<br/>
+    >Low value: Any row where value is less than 800.<br/>
+    >High value: Any row where value is greater or equal than 800.
+
+Below is an image of what the question board looks like at the start of every round
+
+```{r echo=FALSE, out.width="100%"}
+knitr::include_graphics("winning_board.png", error = FALSE)
+```
+
+For each category, we can see that for every 2 high value questions, there are 3 low value questions. 
+If the number of high and low value questions is appreciably different from the 2:3 ratio, we would have reason to believe that a term would be more prevalent in either the low or high value questions. 
+We can use the chi-squared test to test the null hypothesis that each term is not distributed more to either high or low value questions. 
+
+```{r message=FALSE, warning=FALSE}
+# Going only through the first 20 terms for shortness
+# But you can remove the indexing to perform this code on all the terms
+values = pull(jeopardy, value)
+value_count_data = NULL
+
+for (term in terms_used) {
+  n_high_value = 0
+  n_low_value = 0
+  
+  for (i in 1:length(questions)) {
+    # Split the sentence into a new vector
+    split_sentence = str_split(questions[i], " ")[[1]]
+    
+    # Detect if the term is in the question and its value status
+    if (term %in% split_sentence & values[i] >= 800) {
+      n_high_value = n_high_value + 1
+    } else if (term %in% split_sentence & values[i] < 800) { 
+      n_low_value = n_low_value + 1
+    }
+  }
+  
+  # Testing if the counts for high and low value questions deviates from what we expect
+  test = chisq.test(c(n_high_value, n_low_value), p = c(2/5, 3/5))
+  new_row = c(term, n_high_value, n_low_value, test$p.value)
+  
+  # Append this new row to our
+  value_count_data = rbind(value_count_data, new_row)
+  
+}
+```
+
+
+```{r}
+# Take the value count data and put it in a better format
+tidy_value_count_data <- as_tibble(value_count_data)
+colnames(tidy_value_count_data) = c("term", "n_high", "n_low", "p_value")
+
+head(tidy_value_count_data)
+```
+We can see from the output that some of the values are less than 5. <br/>
+Recall that the chi-squared test is prone to errors when the counts in each of the cells are less than 5. <br/>
+We may need to discard these terms and only look at terms where both counts are greater than 5.
+
+
+
+
+
+
+
+
